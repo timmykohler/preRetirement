@@ -281,17 +281,6 @@ const Input = ({ label, value, onChange, prefix, suffix, min, max, step = 1 }) =
   </div>
 );
 
-const LockedValue = ({ label, value, suffix, note }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
-    <label style={{ fontSize: 10, fontFamily: MONO, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500 }}>{label}</label>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.blueLight, border: `1px solid ${C.border}`, borderRadius: 10, padding: "0 10px", height: 38 }}>
-      <span style={{ color: C.text, fontSize: 13, fontFamily: MONO, fontWeight: 700 }}>{value}{suffix ? ` ${suffix}` : ""}</span>
-      <span style={{ color: C.textTertiary, fontSize: 10, fontFamily: MONO, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Fixed</span>
-    </div>
-    {note && <div style={{ color: C.textTertiary, fontSize: 10.5, lineHeight: 1.35 }}>{note}</div>}
-  </div>
-);
-
 const Card = ({ children, style = {} }) => (
   <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: C.shadow, overflow: "hidden", ...style }}>{children}</div>
 );
@@ -373,7 +362,7 @@ td{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
 <tr><td>Age</td><td>${inp.age}</td><td>Investments</td><td>${fmtFull(inp.investments)}</td></tr>
 <tr><td>Income</td><td>${fmtFull(inp.income)}</td><td>Spending</td><td>${fmtFull(inp.spending)}</td></tr>
 <tr><td>Savings Rate</td><td>${sr}%</td><td>Annual Savings</td><td>${fmtFull(savings)}</td></tr>
-<tr><td>Retirement Spending</td><td>${fmtFull(inp.retirementSpending)}</td><td>Withdrawal Rate</td><td>${LOCKED_WITHDRAWAL_RATE.toFixed(1)}% (fixed)</td></tr></table>
+<tr><td>Retirement Spending</td><td>${fmtFull(inp.retirementSpending)}</td><td>Target Method</td><td>25× retirement spending</td></tr></table>
 <h2>Portfolio (Blended Return: ${blend}%)</h2>
 <table><tr><th>Asset</th><th>Allocation</th><th>Return</th></tr>
 <tr><td>Stocks</td><td>${inp.stockPct}%</td><td>${inp.stockReturn}%</td></tr>
@@ -404,7 +393,7 @@ export default function RetireWhenCalculator() {
     extraIncStart: 50, extraIncEnd: 70, extraExpStart: 50, extraExpEnd: 70,
     stockPct: 80, bondPct: 18, cashPct: 2,
     stockReturn: 8.1, bondReturn: 2.4,
-    retirementSpending: 40000, withdrawalRate: LOCKED_WITHDRAWAL_RATE, taxRate: 7,
+    retirementSpending: 40000, taxRate: 7,
   });
   const [tab, setTab] = useState("fixed");
   const [saved, setSaved] = useState(false);
@@ -418,7 +407,7 @@ export default function RetireWhenCalculator() {
       if (r) {
         const p = JSON.parse(r);
         const savedInp = p.inp || p;
-        setInp({ ...savedInp, withdrawalRate: LOCKED_WITHDRAWAL_RATE });
+        setInp(savedInp);
         if (p.tab) setTab(p.tab);
       }
     } catch {}
@@ -427,15 +416,14 @@ export default function RetireWhenCalculator() {
 
   const saveAll = useCallback(() => {
     try {
-      localStorage.setItem("preRetirement-v1", JSON.stringify({ inp: { ...inp, withdrawalRate: LOCKED_WITHDRAWAL_RATE }, tab }));
+      localStorage.setItem("preRetirement-v1", JSON.stringify({ inp, tab }));
       setSaved(true);
       setTimeout(() => setSaved(false), 2200);
     } catch {}
   }, [inp, tab]);
 
   const upd = (k, v) => setInp(prev => {
-    if (k === "withdrawalRate") return prev;
-    const n = { ...prev, [k]: v, withdrawalRate: LOCKED_WITHDRAWAL_RATE };
+    const n = { ...prev, [k]: v };
     if (k === "stockPct") { n.bondPct = Math.max(0, Math.min(100 - v, prev.bondPct)); n.cashPct = 100 - v - n.bondPct; }
     if (k === "bondPct") { n.stockPct = Math.max(0, Math.min(100 - v, prev.stockPct)); n.cashPct = 100 - v - n.stockPct; }
     return n;
@@ -487,7 +475,7 @@ export default function RetireWhenCalculator() {
         <Card style={{ display: "flex", flexWrap: "wrap", marginBottom: 14, overflow: "hidden" }}>
           <Metric label="Estimated Retirement Age" value={fixed.retireAge ? `Age ${fixed.retireAge}` : "40+"} sub="Base case projection" color={C.accent} />
           <Metric label="Years Until Retirement" value={fixed.yearsToRetire ?? "—"} sub={`From current age ${inp.age}`} color={C.text} />
-          <Metric label="Retirement Target" value={fmt(fireTarget)} sub={`${LOCKED_WITHDRAWAL_RATE.toFixed(1)}% withdrawal rate (fixed)`} color={C.fire} />
+          <Metric label="Retirement Target" value={fmt(fireTarget)} sub="25× retirement spending" color={C.fire} />
           <Metric label="Simulation Success" value={`${mc.successRate}%`} sub={`${mc.numSims} simulated paths`} color={C.blue} />
         </Card>
 
@@ -513,9 +501,8 @@ export default function RetireWhenCalculator() {
               <div style={{ fontSize: 10, fontFamily: MONO, color: C.accent, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, marginBottom: 12 }}>Retirement Assumptions</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 <Input label="Retirement Spending" value={inp.retirementSpending} onChange={v => upd("retirementSpending", v)} prefix="$" />
-                <LockedValue label="Withdrawal Rate" value={LOCKED_WITHDRAWAL_RATE.toFixed(1)} suffix="%" note="Fixed assumption used to convert retirement spending into the target portfolio." />
                 <div style={{ background: C.blueLight, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 12px", color: C.textSecondary, fontSize: 11.5, lineHeight: 1.5 }}>
-                  Retirement spending can differ from current annual spending. The retirement target is calculated automatically using the fixed 4.0% withdrawal rate.
+                  Retirement spending can differ from current annual spending. The retirement target updates automatically using a 25× spending rule.
                 </div>
               </div>
             </Card>
